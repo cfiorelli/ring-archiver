@@ -1,0 +1,9 @@
+.venv/
+build/
+dist/
+__pycache__/
+*.spec
+*.pyc
+ring_token.json
+.ring-archiver/
+.DS_Store

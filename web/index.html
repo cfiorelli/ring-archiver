@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ring Video Archiver</title>
+<style>
+  :root { --red:#d8232a; --ink:#1d2430; --muted:#6b7280; --line:#e5e7eb;
+          --ok:#0a8f3c; --bg:#f6f7f9; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+         background:var(--bg); color:var(--ink); }
+  .wrap { max-width:560px; margin:6vh auto; padding:0 20px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:16px;
+          padding:28px; box-shadow:0 6px 30px rgba(0,0,0,.06); }
+  h1 { font-size:22px; margin:0 0 4px; display:flex; align-items:center; gap:10px; }
+  .dot { width:14px; height:14px; border-radius:50%; background:var(--red);
+         box-shadow:0 0 0 4px rgba(216,35,42,.15); }
+  .sub { color:var(--muted); margin:0 0 22px; font-size:14px; }
+  label { display:block; font-weight:600; font-size:13px; margin:14px 0 6px; }
+  input, select { width:100%; padding:12px 13px; font-size:15px; border:1px solid var(--line);
+          border-radius:10px; background:#fff; }
+  input:focus, select:focus { outline:none; border-color:var(--red);
+          box-shadow:0 0 0 3px rgba(216,35,42,.12); }
+  button { width:100%; margin-top:20px; padding:14px; font-size:16px; font-weight:700;
+           color:#fff; background:var(--red); border:0; border-radius:12px; cursor:pointer; }
+  button:hover { filter:brightness(.95); }
+  button.ghost { background:#fff; color:var(--ink); border:1px solid var(--line); }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .row { display:flex; gap:12px; }
+  .row > div { flex:1; }
+  .step { color:var(--muted); font-size:12px; text-transform:uppercase;
+          letter-spacing:.08em; font-weight:700; margin-bottom:2px; }
+  .hide { display:none; }
+  .note { font-size:13px; color:var(--muted); margin-top:14px; line-height:1.5; }
+  .err { color:var(--red); font-size:14px; margin-top:12px; min-height:18px; }
+  /* progress */
+  .bar { height:14px; background:#eef0f3; border-radius:99px; overflow:hidden; margin:14px 0 8px; }
+  .bar > span { display:block; height:100%; width:0; background:linear-gradient(90deg,#d8232a,#f0584f);
+          transition:width .3s; }
+  .big { font-size:30px; font-weight:800; }
+  .stats { display:flex; gap:18px; flex-wrap:wrap; color:var(--muted);
+           font-size:13px; margin-top:6px; }
+  .stats b { color:var(--ink); }
+  .cur { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13px;
+         color:var(--muted); margin-top:10px; word-break:break-all; min-height:18px; }
+  .badge { display:inline-block; font-size:11px; font-weight:700; color:#fff;
+           background:#8b5cf6; padding:2px 8px; border-radius:99px; vertical-align:middle; }
+  .done-icon { color:var(--ok); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1><span class="dot"></span> Ring Video Archiver <span id="demoBadge" class="badge hide">DEMO</span></h1>
+    <p class="sub">Save and preserve your Ring camera videos before they expire.</p>
+
+    <!-- STEP 1: sign in -->
+    <section id="login">
+      <div class="step">Step 1 · Sign in to Ring</div>
+      <label>Email</label>
+      <input id="email" type="email" autocomplete="username" placeholder="you@example.com">
+      <label>Password</label>
+      <input id="password" type="password" autocomplete="current-password" placeholder="••••••••">
+      <div id="otpBox" class="hide">
+        <label>Text message code</label>
+        <input id="otp" inputmode="numeric" placeholder="6-digit code Ring just texted you">
+      </div>
+      <button id="signin">Sign in</button>
+      <div id="loginErr" class="err"></div>
+      <p class="note">Your email and password go straight to Ring — this app never stores them.
+        Ring will text a one-time code the first time.</p>
+    </section>
+
+    <!-- STEP 2: choose -->
+    <section id="choose" class="hide">
+      <div class="step">Step 2 · Choose what to save</div>
+      <label>Camera</label>
+      <select id="camera"></select>
+      <div class="row">
+        <div>
+          <label>How far back</label>
+          <select id="range">
+            <option value="">Everything available</option>
+            <option value="180">Last 180 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="7">Last 7 days</option>
+          </select>
+        </div>
+      </div>
+      <label>Save videos to this folder</label>
+      <input id="dest" type="text">
+      <button id="start">Download videos</button>
+      <div id="chooseErr" class="err"></div>
+      <p class="note">Videos are saved <b>oldest first</b> (those expire soonest). You can
+        close and reopen later — already-saved videos are skipped automatically.</p>
+    </section>
+
+    <!-- STEP 3: progress -->
+    <section id="progress" class="hide">
+      <div class="step" id="progStep">Step 3 · Downloading</div>
+      <div id="bigPct" class="big">0%</div>
+      <div class="bar"><span id="barFill"></span></div>
+      <div class="stats">
+        <div><b id="sDone">0</b> of <b id="sTotal">0</b> saved</div>
+        <div id="sEta">estimating…</div>
+        <div><span id="sSkip">0</span> skipped · <span id="sFail">0</span> failed</div>
+      </div>
+      <div class="cur" id="curFile"></div>
+      <div class="row">
+        <div><button id="pause" class="ghost">Pause</button></div>
+        <div><button id="openFolder" class="ghost">Open folder</button></div>
+      </div>
+      <div id="doneMsg" class="note hide"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let DEMO = false, polling = null, paused = false;
+
+function show(id){ for (const s of ["login","choose","progress"]) $("#"+s).classList.toggle("hide", s!==id); }
+async function api(path, body){
+  const opt = { method: body ? "POST" : "GET" };
+  if (body){ opt.headers={"Content-Type":"application/json"}; opt.body=JSON.stringify(body); }
+  const r = await fetch(path, opt); return r.json();
+}
+function fmtEta(s){
+  if (s==null) return "estimating…";
+  if (s<=0) return "done";
+  const h=Math.floor(s/3600), m=Math.floor((s%3600)/60);
+  if (h) return "about "+h+"h "+m+"m left";
+  if (m) return "about "+m+"m left";
+  return "under a minute left";
+}
+
+// ---- init: maybe already signed in via cached token ----
+(async () => {
+  const s = await api("/api/session");
+  DEMO = s.demo;
+  $("#demoBadge").classList.toggle("hide", !DEMO);
+  if (s.signed_in){ await loadCameras(); show("choose"); }
+  else show("login");
+})();
+
+// ---- sign in ----
+$("#signin").onclick = async () => {
+  $("#loginErr").textContent = "";
+  const btn = $("#signin"); btn.disabled = true; btn.textContent = "Signing in…";
+  const res = await api("/api/login", {
+    email:$("#email").value, password:$("#password").value, otp:$("#otp").value
+  });
+  btn.disabled = false; btn.textContent = "Sign in";
+  if (res.needs_otp){
+    $("#otpBox").classList.remove("hide");
+    $("#loginErr").textContent = "Ring texted you a code — enter it above.";
+    $("#otp").focus(); return;
+  }
+  if (!res.ok){ $("#loginErr").textContent = res.error || "Sign-in failed. Check your details."; return; }
+  await loadCameras(); show("choose");
+};
+
+async function loadCameras(){
+  const r = await api("/api/cameras", {});
+  const sel = $("#camera"); sel.innerHTML = "";
+  (r.cameras||[]).forEach(c => {
+    const o = document.createElement("option"); o.value=c.id; o.textContent=c.name; sel.appendChild(o);
+  });
+  if (r.error) $("#chooseErr").textContent = r.error;
+  const p = await api("/api/progress"); $("#dest").value = p.dest;
+}
+
+// ---- start ----
+$("#start").onclick = async () => {
+  await api("/api/start", {
+    camera_id:$("#camera").value, since_days:$("#range").value, dest:$("#dest").value
+  });
+  show("progress"); startPolling();
+};
+
+// ---- pause / resume / folder ----
+$("#pause").onclick = async () => {
+  paused = !paused;
+  await api(paused ? "/api/pause" : "/api/resume", {});
+  $("#pause").textContent = paused ? "Resume" : "Pause";
+};
+$("#openFolder").onclick = () => api("/api/open-folder", {});
+
+function startPolling(){
+  if (polling) clearInterval(polling);
+  polling = setInterval(refresh, 1000); refresh();
+}
+async function refresh(){
+  const p = await api("/api/progress");
+  const total = p.total||0, done = p.done||0;
+  const pct = total ? Math.floor(done*100/total) : 0;
+  $("#bigPct").textContent = pct + "%";
+  $("#barFill").style.width = pct + "%";
+  $("#sDone").textContent = done.toLocaleString();
+  $("#sTotal").textContent = total.toLocaleString();
+  $("#sSkip").textContent = p.skipped||0;
+  $("#sFail").textContent = p.failed||0;
+  $("#sEta").textContent = fmtEta(p.eta_seconds);
+  $("#curFile").textContent = p.current ? "✓ " + p.current : (p.message||"");
+
+  if (p.phase === "scanning"){ $("#progStep").textContent = "Step 3 · Finding videos"; }
+  else if (p.phase === "paused"){ $("#progStep").textContent = "Step 3 · Paused"; }
+  else if (p.phase === "downloading"){ $("#progStep").textContent = "Step 3 · Downloading"; }
+  else if (p.phase === "done"){
+    $("#progStep").innerHTML = 'Step 3 · <span class="done-icon">Complete ✓</span>';
+    $("#doneMsg").classList.remove("hide");
+    $("#doneMsg").textContent = p.message || "All done.";
+    $("#pause").disabled = true;
+    clearInterval(polling);
+  } else if (p.phase === "error"){
+    $("#progStep").textContent = "Something went wrong";
+    $("#doneMsg").classList.remove("hide");
+    $("#doneMsg").textContent = p.error || "Unknown error";
+    clearInterval(polling);
+  }
+}
+</script>
+</body>
+</html>
