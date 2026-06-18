@@ -31,6 +31,7 @@ import asyncio
 import csv
 import json
 import os
+import re
 import sys
 import threading
 import time
@@ -50,6 +51,10 @@ WEB_DIR = BUNDLE_DIR / "web"
 # The login token must persist in a writable place (NOT the temp bundle dir).
 DATA_DIR = Path.home() / ".ring-archiver"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
+try:
+    os.chmod(DATA_DIR, 0o700)  # token dir: owner-only
+except Exception:
+    pass
 TOKEN_FILE = DATA_DIR / "ring_token.json"
 DEFAULT_DEST = Path.home() / "Ring Videos"
 USER_AGENT = "RingVideoArchiver/1.0"
@@ -121,6 +126,7 @@ class RingBridge:
     def _token_updated(self, token):
         try:
             TOKEN_FILE.write_text(json.dumps(token))
+            os.chmod(TOKEN_FILE, 0o600)  # refresh token: owner read/write only
         except Exception:
             pass
 
@@ -230,7 +236,8 @@ BRIDGE = RingBridge()
 
 def _filename_for(ev):
     created = ev.get("created_at")
-    kind = (ev.get("kind") or "event").replace(" ", "-")
+    # Sanitize: never let API-supplied text introduce path separators / traversal.
+    kind = re.sub(r"[^A-Za-z0-9._-]", "-", str(ev.get("kind") or "event"))[:40]
     if isinstance(created, datetime):
         local = created.astimezone()
         month = local.strftime("%Y-%m")
@@ -396,7 +403,24 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             return {}
 
+    def _local_only(self):
+        """Loopback hardening: defeat DNS-rebinding (Host header must be
+        loopback) and cross-site POSTs (any Origin must be ours). Same-origin
+        requests from our own page always pass; plain curl passes too."""
+        host = (self.headers.get("Host") or "").split(",")[0].strip().lower()
+        ok_hosts = {"127.0.0.1:%d" % PORT, "localhost:%d" % PORT,
+                    "127.0.0.1", "localhost"}
+        if host and host not in ok_hosts:
+            self._send(403, json.dumps({"error": "forbidden host"})); return False
+        origin = self.headers.get("Origin")
+        if origin and origin not in ("http://127.0.0.1:%d" % PORT,
+                                     "http://localhost:%d" % PORT):
+            self._send(403, json.dumps({"error": "forbidden origin"})); return False
+        return True
+
     def do_GET(self):
+        if not self._local_only():
+            return
         if self.path in ("/", "/index.html"):
             html = (WEB_DIR / "index.html").read_text()
             return self._send(200, html, "text/html; charset=utf-8")
@@ -414,6 +438,8 @@ class Handler(BaseHTTPRequestHandler):
         return self._send(404, json.dumps({"error": "not found"}))
 
     def do_POST(self):
+        if not self._local_only():
+            return
         body = self._json_body()
         if self.path == "/api/login":
             return self._login(body)
