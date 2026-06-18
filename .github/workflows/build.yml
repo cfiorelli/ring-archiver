@@ -1,0 +1,68 @@
+name: Build apps
+
+# Builds a standalone, no-install app for each OS. Push a version tag (e.g.
+# `git tag v1.0 && git push --tags`) and the binaries are attached to a GitHub
+# Release automatically — which the GitHub Pages page links to.
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest    # Apple Silicon (M1/M2/M3/M4)
+            asset: RingArchiver-mac-AppleSilicon
+            sep: ":"
+          - os: macos-13        # Intel Macs
+            asset: RingArchiver-mac-Intel
+            sep: ":"
+          - os: windows-latest
+            asset: RingArchiver-windows.exe
+            sep: ";"
+          - os: ubuntu-latest
+            asset: RingArchiver-linux
+            sep: ":"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+      - name: Build standalone app
+        shell: bash
+        run: |
+          pyinstaller --noconfirm --onefile --name RingArchiver \
+            --add-data "web${{ matrix.sep }}web" \
+            --collect-all ring_doorbell \
+            --collect-all firebase_messaging \
+            --collect-all http_ece \
+            --collect-submodules google.protobuf \
+            app.py
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            mv dist/RingArchiver.exe "dist/${{ matrix.asset }}"
+          else
+            mv dist/RingArchiver "dist/${{ matrix.asset }}"
+          fi
+      - name: Attach to release (on tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/${{ matrix.asset }}
+      - name: Upload as artifact (always)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/${{ matrix.asset }}
