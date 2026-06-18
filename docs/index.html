@@ -68,10 +68,10 @@
   const REPO = "cfiorelli/ring-archiver";
   const base = `https://github.com/${REPO}/releases/latest/download`;
   const builds = {
-    macSilicon: { file: "RingArchiver-mac-AppleSilicon", label: "Download for Mac", sub: "Apple Silicon (M1/M2/M3/M4)" },
-    macIntel:   { file: "RingArchiver-mac-Intel",        label: "Download for Mac", sub: "Intel Mac" },
-    windows:    { file: "RingArchiver-windows.exe",       label: "Download for Windows", sub: "Windows 10 / 11" },
-    linux:      { file: "RingArchiver-linux",             label: "Download for Linux", sub: "" },
+    macSilicon: { file: "RingArchiver-mac-AppleSilicon.zip", label: "Download for Mac", sub: "Apple Silicon (M1/M2/M3/M4)" },
+    macIntel:   { file: "RingArchiver-mac-Intel.zip",        label: "Download for Mac", sub: "Intel Mac" },
+    windows:    { file: "RingArchiver-windows.exe",          label: "Download for Windows", sub: "Windows 10 / 11" },
+    linux:      { file: "RingArchiver-linux",                label: "Download for Linux", sub: "" },
   };
   function btn(b, primary){
     return `<a class="dl ${primary?'':'alt'}" href="${base}/${b.file}">${b.label}`
