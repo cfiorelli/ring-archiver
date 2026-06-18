@@ -6,7 +6,7 @@
 <title>Ring Video Archiver</title>
 <style>
   :root { --red:#d8232a; --ink:#1d2430; --muted:#6b7280; --line:#e5e7eb;
-          --ok:#0a8f3c; --bg:#f6f7f9; }
+          --ok:#0a8f3c; --warn:#9a6700; --warnbg:#fff8e1; --bg:#f6f7f9; }
   * { box-sizing: border-box; }
   body { margin:0; font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
          background:var(--bg); color:var(--ink); }
@@ -34,6 +34,20 @@
   .hide { display:none; }
   .note { font-size:13px; color:var(--muted); margin-top:14px; line-height:1.5; }
   .err { color:var(--red); font-size:14px; margin-top:12px; min-height:18px; }
+  /* camera list */
+  .camlist { border:1px solid var(--line); border-radius:10px; max-height:170px;
+             overflow:auto; padding:4px 0; }
+  .camrow { display:flex; align-items:center; gap:10px; padding:8px 13px; cursor:pointer; }
+  .camrow:hover { background:#f9fafb; }
+  .camrow input { width:auto; }
+  .camrow.allrow { border-bottom:1px solid var(--line); font-weight:700; }
+  /* banners */
+  .banner { font-size:13px; border-radius:10px; padding:10px 13px; margin-bottom:16px;
+            display:flex; gap:10px; align-items:center; justify-content:space-between; }
+  .banner.update { background:#eef6ff; color:#0b4a8f; border:1px solid #cfe3fb; }
+  .banner.update a { color:#0b4a8f; font-weight:700; white-space:nowrap; }
+  .warnbox { background:var(--warnbg); color:var(--warn); border:1px solid #f1e3a8;
+             border-radius:10px; padding:10px 13px; font-size:13px; margin:14px 0; }
   /* progress */
   .bar { height:14px; background:#eef0f3; border-radius:99px; overflow:hidden; margin:14px 0 8px; }
   .bar > span { display:block; height:100%; width:0; background:linear-gradient(90deg,#d8232a,#f0584f);
@@ -47,17 +61,30 @@
   .badge { display:inline-block; font-size:11px; font-weight:700; color:#fff;
            background:#8b5cf6; padding:2px 8px; border-radius:99px; vertical-align:middle; }
   .done-icon { color:var(--ok); }
+  .support { text-align:center; color:var(--muted); font-size:13px; margin:16px 4px 0; }
+  .support a { color:var(--muted); text-decoration:underline; text-underline-offset:2px; }
+  .support a:hover { color:var(--ink); }
+  .ver { text-align:center; color:#aab1bb; font-size:11px; margin-top:6px; }
+  .picker { display:flex; gap:10px; align-items:stretch; }
+  .picker > input { flex:1; }
+  .choosebtn { width:auto; margin-top:0; padding:0 18px; white-space:nowrap; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="card">
+    <div id="updateBanner" class="banner update hide">
+      <span id="updateText"></span>
+      <a id="updateLink" href="#" target="_blank" rel="noopener noreferrer">Get update →</a>
+    </div>
+
     <h1><span class="dot"></span> Ring Video Archiver <span id="demoBadge" class="badge hide">DEMO</span></h1>
     <p class="sub">Save and preserve your Ring camera videos before they expire.</p>
 
     <!-- STEP 1: sign in -->
     <section id="login">
-      <div class="step">Step 1 · Sign in to Ring</div>
+      <div class="step" id="loginStep">Step 1 · Sign in to Ring</div>
+      <div id="reauthNote" class="warnbox hide"></div>
       <label>Email</label>
       <input id="email" type="email" autocomplete="username" placeholder="you@example.com">
       <label>Password</label>
@@ -75,26 +102,30 @@
     <!-- STEP 2: choose -->
     <section id="choose" class="hide">
       <div class="step">Step 2 · Choose what to save</div>
-      <label>Camera</label>
-      <select id="camera"></select>
+      <label>Cameras</label>
+      <div id="camlist" class="camlist"></div>
       <div class="row">
         <div>
-          <label>How far back</label>
-          <select id="range">
-            <option value="">Everything available</option>
-            <option value="180">Last 180 days</option>
-            <option value="90">Last 90 days</option>
-            <option value="30">Last 30 days</option>
-            <option value="7">Last 7 days</option>
-          </select>
+          <label>From (optional)</label>
+          <input id="fromDate" type="date">
+        </div>
+        <div>
+          <label>To (optional)</label>
+          <input id="toDate" type="date">
         </div>
       </div>
-      <label>Save videos to this folder</label>
-      <input id="dest" type="text">
+      <label>Save to</label>
+      <div class="picker">
+        <input id="dest" type="text" placeholder="Type a folder path, or click Choose…">
+        <button id="choose" class="ghost choosebtn">Choose…</button>
+      </div>
+      <div id="spaceLine" class="note"></div>
       <button id="start">Download videos</button>
+      <button id="verify" class="ghost">Verify &amp; repair existing</button>
       <div id="chooseErr" class="err"></div>
-      <p class="note">Videos are saved <b>oldest first</b> (those expire soonest). You can
-        close and reopen later — already-saved videos are skipped automatically.</p>
+      <p class="note">Leave the dates blank to save <b>everything available</b>. Videos save
+        <b>oldest first</b> (those expire soonest). You can close and reopen later — already-saved
+        videos are skipped, and any half-downloaded ones are re-fetched automatically.</p>
     </section>
 
     <!-- STEP 3: progress -->
@@ -103,23 +134,30 @@
       <div id="bigPct" class="big">0%</div>
       <div class="bar"><span id="barFill"></span></div>
       <div class="stats">
-        <div><b id="sDone">0</b> of <b id="sTotal">0</b> saved</div>
+        <div><b id="sDone">0</b> of <b id="sTotal">0</b> done</div>
         <div id="sEta">estimating…</div>
-        <div><span id="sSkip">0</span> skipped · <span id="sFail">0</span> failed</div>
+        <div><span id="sAlready">0</span> already saved · <span id="sFail">0</span> failed</div>
       </div>
+      <div id="warnBox" class="warnbox hide"></div>
       <div class="cur" id="curFile"></div>
       <div class="row">
         <div><button id="pause" class="ghost">Pause</button></div>
         <div><button id="openFolder" class="ghost">Open folder</button></div>
       </div>
       <div id="doneMsg" class="note hide"></div>
+      <button id="verifyAgain" class="ghost hide">Verify &amp; repair</button>
     </section>
   </div>
+  <p class="support">This tool is free and private. If it helped, you can
+    <a href="https://venmo.com/u/CHRISTOPHER-FIORELLI-1" target="_blank" rel="noopener noreferrer">chip in&nbsp;♥</a>.</p>
+  <p class="ver" id="verLine"></p>
 </div>
 
 <script>
 const $ = s => document.querySelector(s);
 let DEMO = false, polling = null, paused = false;
+let reauthing = false, notified = false;
+let lastJob = null;  // remembers selection so "Verify & repair" can re-run it
 
 function show(id){ for (const s of ["login","choose","progress"]) $("#"+s).classList.toggle("hide", s!==id); }
 async function api(path, body){
@@ -136,16 +174,29 @@ function fmtEta(s){
   return "under a minute left";
 }
 
-// ---- init: maybe already signed in via cached token ----
+// ---- init: version, update check, maybe already signed in ----
 (async () => {
   const s = await api("/api/session");
   DEMO = s.demo;
   $("#demoBadge").classList.toggle("hide", !DEMO);
+  $("#verLine").textContent = "v" + (s.version || "");
+  checkUpdate();
   if (s.signed_in){ await loadCameras(); show("choose"); }
   else show("login");
 })();
 
-// ---- sign in ----
+async function checkUpdate(){
+  try {
+    const u = await api("/api/update-check");
+    if (u.update_available){
+      $("#updateText").textContent = "A newer version (v" + u.latest_version + ") is available.";
+      $("#updateLink").href = u.release_url;
+      $("#updateBanner").classList.remove("hide");
+    }
+  } catch(e){}
+}
+
+// ---- sign in (also used for mid-run re-auth) ----
 $("#signin").onclick = async () => {
   $("#loginErr").textContent = "";
   const btn = $("#signin"); btn.disabled = true; btn.textContent = "Signing in…";
@@ -159,26 +210,105 @@ $("#signin").onclick = async () => {
     $("#otp").focus(); return;
   }
   if (!res.ok){ $("#loginErr").textContent = res.error || "Sign-in failed. Check your details."; return; }
+  if (reauthing){            // resume the paused download right where it stopped
+    reauthing = false;
+    $("#reauthNote").classList.add("hide");
+    $("#loginStep").textContent = "Step 1 · Sign in to Ring";
+    show("progress"); startPolling(); return;
+  }
   await loadCameras(); show("choose");
 };
 
 async function loadCameras(){
   const r = await api("/api/cameras", {});
-  const sel = $("#camera"); sel.innerHTML = "";
-  (r.cameras||[]).forEach(c => {
-    const o = document.createElement("option"); o.value=c.id; o.textContent=c.name; sel.appendChild(o);
+  const box = $("#camlist"); box.innerHTML = "";
+  const cams = r.cameras || [];
+  // "All cameras" toggle
+  const all = document.createElement("label");
+  all.className = "camrow allrow";
+  all.innerHTML = '<input type="checkbox" id="camAll"> All cameras';
+  box.appendChild(all);
+  cams.forEach(c => {
+    const row = document.createElement("label");
+    row.className = "camrow";
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.className = "camcb"; cb.value = c.id;
+    if (cams.length === 1) cb.checked = true;
+    row.appendChild(cb);
+    row.appendChild(document.createTextNode(" " + c.name));
+    box.appendChild(row);
   });
+  $("#camAll").onchange = e => {
+    document.querySelectorAll(".camcb").forEach(cb => cb.checked = e.target.checked);
+  };
   if (r.error) $("#chooseErr").textContent = r.error;
   const p = await api("/api/progress"); $("#dest").value = p.dest;
+  updateSpace();
 }
 
-// ---- start ----
-$("#start").onclick = async () => {
-  await api("/api/start", {
-    camera_id:$("#camera").value, since_days:$("#range").value, dest:$("#dest").value
-  });
-  show("progress"); startPolling();
+// ---- destination: type a path, or use the native folder chooser ----
+let spaceTimer = null, choosing = false;
+$("#dest").addEventListener("input", () => {
+  clearTimeout(spaceTimer);
+  spaceTimer = setTimeout(updateSpace, 400);
+});
+$("#choose").onclick = async () => {
+  if (choosing) return;                 // one dialog at a time (client guard)
+  choosing = true;
+  const btn = $("#choose"); btn.disabled = true;
+  try {
+    const i = await api("/api/choose-folder", {});
+    if (i && i.ok && i.dest){ $("#dest").value = i.dest; applySpace(i); }
+    // canceled / busy → leave the existing path untouched
+  } catch(e){}
+  btn.disabled = false; choosing = false;
 };
+function applySpace(i){
+  const line = $("#spaceLine");
+  if (!i.mounted){
+    line.style.color = "var(--red)";
+    line.textContent = "⚠ " + i.warning;
+    $("#start").disabled = true; $("#verify").disabled = true;
+  } else {
+    line.style.color = "";
+    line.textContent = "Saving to " + i.volume + " · " + i.free_h + " free.";
+    $("#start").disabled = false; $("#verify").disabled = false;
+  }
+}
+async function updateSpace(){
+  try { applySpace(await api("/api/space?dest=" + encodeURIComponent($("#dest").value))); }
+  catch(e){}
+}
+
+function selectedCameraIds(){
+  if ($("#camAll") && $("#camAll").checked) return ["all"];
+  return [...document.querySelectorAll(".camcb")].filter(c => c.checked).map(c => c.value);
+}
+
+function ensureNotifyPermission(){
+  try { if ("Notification" in window && Notification.permission === "default") Notification.requestPermission(); } catch(e){}
+}
+
+// ---- start / verify ----
+$("#start").onclick = () => beginJob("/api/start");
+$("#verify").onclick = () => beginJob("/api/verify");
+$("#verifyAgain").onclick = () => { if (lastJob) beginJob("/api/verify", lastJob); };
+
+async function beginJob(path, job){
+  const ids = job ? job.camera_ids : selectedCameraIds();
+  if (!ids.length){ $("#chooseErr").textContent = "Pick at least one camera."; return; }
+  lastJob = job || {
+    camera_ids: ids,
+    start_date: $("#fromDate").value,
+    end_date: $("#toDate").value,
+    dest: $("#dest").value
+  };
+  $("#chooseErr").textContent = "";
+  ensureNotifyPermission();
+  notified = false;
+  await api(path, lastJob);
+  show("progress"); startPolling();
+}
 
 // ---- pause / resume / folder ----
 $("#pause").onclick = async () => {
@@ -192,33 +322,62 @@ function startPolling(){
   if (polling) clearInterval(polling);
   polling = setInterval(refresh, 1000); refresh();
 }
+
+function fireDoneNotification(msg){
+  if (notified) return;
+  notified = true;
+  try {
+    if ("Notification" in window && Notification.permission === "granted")
+      new Notification("Ring Video Archiver", { body: msg });
+  } catch(e){}
+}
+
 async function refresh(){
   const p = await api("/api/progress");
+
+  // Mid-run session expiry → bounce to the sign-in screen, then resume.
+  if (p.phase === "reauth"){
+    clearInterval(polling); polling = null;
+    reauthing = true;
+    $("#loginStep").textContent = "Step 1 · Sign in again to continue";
+    $("#reauthNote").textContent = p.message || "Your Ring session expired — sign in again.";
+    $("#reauthNote").classList.remove("hide");
+    $("#otpBox").classList.add("hide"); $("#otp").value = "";
+    show("login"); return;
+  }
+
   const total = p.total||0, done = p.done||0;
   const pct = total ? Math.floor(done*100/total) : 0;
   $("#bigPct").textContent = pct + "%";
   $("#barFill").style.width = pct + "%";
   $("#sDone").textContent = done.toLocaleString();
   $("#sTotal").textContent = total.toLocaleString();
-  $("#sSkip").textContent = p.skipped||0;
-  $("#sFail").textContent = p.failed||0;
+  $("#sAlready").textContent = (p.already||0).toLocaleString();
+  let failTxt = (p.failed||0).toLocaleString();
+  if (p.failed_permanent) failTxt += " (" + p.failed_permanent + " gone from Ring)";
+  $("#sFail").textContent = failTxt;
   $("#sEta").textContent = fmtEta(p.eta_seconds);
   $("#curFile").textContent = p.current ? "✓ " + p.current : (p.message||"");
 
-  if (p.phase === "scanning"){ $("#progStep").textContent = "Step 3 · Finding videos"; }
+  $("#warnBox").classList.toggle("hide", !p.warning);
+  if (p.warning) $("#warnBox").textContent = "⚠ " + p.warning;
+
+  if (p.phase === "scanning"){ $("#progStep").textContent = p.verifying ? "Step 3 · Re-checking" : "Step 3 · Finding videos"; }
   else if (p.phase === "paused"){ $("#progStep").textContent = "Step 3 · Paused"; }
-  else if (p.phase === "downloading"){ $("#progStep").textContent = "Step 3 · Downloading"; }
+  else if (p.phase === "downloading"){ $("#progStep").textContent = p.verifying ? "Step 3 · Verifying & repairing" : "Step 3 · Downloading"; }
   else if (p.phase === "done"){
     $("#progStep").innerHTML = 'Step 3 · <span class="done-icon">Complete ✓</span>';
     $("#doneMsg").classList.remove("hide");
     $("#doneMsg").textContent = p.message || "All done.";
     $("#pause").disabled = true;
-    clearInterval(polling);
+    $("#verifyAgain").classList.remove("hide");
+    fireDoneNotification(p.message || "All done.");
+    clearInterval(polling); polling = null;
   } else if (p.phase === "error"){
     $("#progStep").textContent = "Something went wrong";
     $("#doneMsg").classList.remove("hide");
     $("#doneMsg").textContent = p.error || "Unknown error";
-    clearInterval(polling);
+    clearInterval(polling); polling = null;
   }
 }
 </script>

@@ -7,3 +7,4 @@ __pycache__/
 ring_token.json
 .ring-archiver/
 .DS_Store
+NOTES.md
