@@ -40,6 +40,18 @@ from datetime import datetime, timezone, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+# TLS fix: a packaged (PyInstaller) app doesn't ship OpenSSL's default CA
+# bundle, so HTTPS verification of Ring's servers fails with
+# "CERTIFICATE_VERIFY_FAILED / unable to get local issuer certificate".
+# Point OpenSSL (used by aiohttp) at certifi's bundled roots. Must run before
+# any TLS connection is created.
+try:
+    import certifi
+    os.environ["SSL_CERT_FILE"] = certifi.where()
+    os.environ["REQUESTS_CA_BUNDLE"] = certifi.where()
+except Exception:
+    pass
+
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
