@@ -3,92 +3,234 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ring Video Archiver — Download</title>
+<title>Ring Video Archiver — Save your videos</title>
 <style>
-  :root { --red:#d8232a; --ink:#1d2430; --muted:#6b7280; --line:#e5e7eb; --bg:#f6f7f9; }
-  * { box-sizing:border-box; }
-  body { margin:0; font:17px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-         background:var(--bg); color:var(--ink); }
-  .wrap { max-width:640px; margin:6vh auto; padding:0 20px; }
-  .card { background:#fff; border:1px solid var(--line); border-radius:18px;
-          padding:34px; box-shadow:0 8px 36px rgba(0,0,0,.06); }
-  h1 { font-size:26px; margin:0 0 6px; display:flex; align-items:center; gap:12px; }
-  .dot { width:16px; height:16px; border-radius:50%; background:var(--red);
-         box-shadow:0 0 0 5px rgba(216,35,42,.15); }
-  .sub { color:var(--muted); margin:0 0 26px; }
-  .dl { display:block; text-decoration:none; text-align:center; font-weight:700; font-size:17px;
-        color:#fff; background:var(--red); border-radius:13px; padding:16px; margin:12px 0; }
-  .dl.alt { background:#fff; color:var(--ink); border:1px solid var(--line); font-weight:600; font-size:15px; }
-  .dl small { display:block; font-weight:500; opacity:.85; font-size:13px; margin-top:2px; }
-  .pick { font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.07em;
-          font-weight:700; margin:22px 0 6px; }
-  ol { padding-left:22px; } li { margin:8px 0; }
-  .note { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; border-radius:12px;
-          padding:14px 16px; font-size:14px; margin-top:22px; }
-  .note b { color:#7c2d12; }
-  hr { border:0; border-top:1px solid var(--line); margin:28px 0; }
-  code { background:#f1f3f5; padding:1px 6px; border-radius:6px; font-size:14px; }
+  :root{
+    --ink:#1f2a22; --muted:#5c6b5f; --line:#dce7d8;
+    --green:#2e7d4f; --green-dark:#236b42; --leaf:#3a9d63;
+    --card:#ffffff; --cream:#f6faf4;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; color:var(--ink);
+    font:17px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:
+      linear-gradient(rgba(231,241,228,.55), rgba(214,235,208,.55)),
+      url("leaves.svg");
+    background-size:auto, 150px 150px;
+    background-attachment:fixed, fixed;
+  }
+  .wrap{max-width:680px; margin:0 auto; padding:40px 18px 70px;}
+  .hero{text-align:center; margin-bottom:26px;}
+  .hero .leafmark{font-size:40px; line-height:1;}
+  h1{font-size:30px; margin:8px 0 6px; color:var(--green-dark);}
+  .tagline{color:var(--muted); margin:0; font-size:16px;}
+
+  .panel{
+    background:var(--card); border:1px solid var(--line); border-radius:18px;
+    padding:22px 24px; margin:16px 0; box-shadow:0 10px 30px rgba(31,61,40,.08);
+  }
+  .needs{background:var(--cream);}
+  .needs h2{font-size:15px; margin:0 0 8px; color:var(--green-dark);
+            text-transform:uppercase; letter-spacing:.06em;}
+  .needs ul{margin:0; padding-left:20px;} .needs li{margin:4px 0;}
+
+  .step{display:flex; gap:16px; align-items:flex-start;}
+  .num{flex:0 0 auto; width:38px; height:38px; border-radius:50%;
+       background:var(--green); color:#fff; font-weight:800; font-size:18px;
+       display:flex; align-items:center; justify-content:center; box-shadow:0 3px 8px rgba(46,125,79,.35);}
+  .body{flex:1; min-width:0;}
+  .body h2{font-size:20px; margin:2px 0 6px; color:var(--green-dark);}
+  .body p{margin:6px 0;}
+  .small{font-size:14px; color:var(--muted);}
+
+  .dl{display:block; text-decoration:none; text-align:center; font-weight:800; font-size:17px;
+      color:#fff; background:var(--green); border-radius:13px; padding:15px; margin:10px 0;}
+  .dl:hover{background:var(--green-dark);}
+  .dl small{display:block; font-weight:600; opacity:.9; font-size:13px; margin-top:2px;}
+  .dl.alt{background:#fff; color:var(--ink); border:1px solid var(--line); font-weight:700; font-size:15px;}
+  details{margin-top:8px;} summary{cursor:pointer; color:var(--green-dark); font-weight:700; font-size:14px;}
+
+  .cmd{display:flex; align-items:stretch; gap:0; margin:10px 0; border:1px solid var(--line);
+       border-radius:10px; overflow:hidden;}
+  .cmd code{flex:1; padding:12px 14px; background:#0f241a; color:#d9f2e2;
+            font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace; overflow-x:auto; white-space:nowrap;}
+  .cmd button{border:0; background:var(--leaf); color:#fff; font-weight:700; padding:0 16px; cursor:pointer; font-size:14px;}
+  .cmd button:hover{background:var(--green-dark);}
+
+  .callout{background:#fff7e8; border:1px solid #f3dca6; border-radius:12px;
+           padding:12px 15px; font-size:14.5px; margin:10px 0; color:#6b4e16;}
+  .ok{background:#eaf6ee; border:1px solid #bfe3cb; color:#1f5b39;}
+  .way{border-left:3px solid var(--line); padding-left:14px; margin:12px 0;}
+  .way b{color:var(--green-dark);}
+  .foot{text-align:center; color:var(--muted); font-size:13.5px; margin-top:24px;}
+  kbd{background:#eef3ec; border:1px solid var(--line); border-radius:5px; padding:1px 6px; font-size:13px;}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="card">
-    <h1><span class="dot"></span> Ring Video Archiver</h1>
-    <p class="sub">Download and keep your Ring camera videos before Ring deletes
-      them. Runs entirely on your own computer — your videos and password never
-      go anywhere except to Ring.</p>
 
-    <div class="pick">Step 1 · Download for your computer</div>
-    <div id="primary"></div>
-    <div class="pick">Other computers</div>
-    <div id="others"></div>
-
-    <div class="note" id="security">
-      <b>One-time safety prompt:</b> because this is a small free tool, your
-      computer may warn you the first time.
-      <span id="macTip"><br>• <b>Mac:</b> right-click the downloaded app → <b>Open</b> →
-        <b>Open</b> again.</span>
-      <span id="winTip"><br>• <b>Windows:</b> click <b>More info</b> → <b>Run anyway</b>.</span>
-    </div>
-
-    <hr>
-    <div class="pick">Step 2 · Use it</div>
-    <ol>
-      <li>Open the app — your web browser opens to a sign-in page.</li>
-      <li>Sign in with your Ring email &amp; password; type the 6-digit code Ring texts you.</li>
-      <li>Pick your camera, click <b>Download videos</b>, and walk away.</li>
-    </ol>
-    <p class="sub" style="margin-top:6px">Videos save <b>oldest first</b> (those
-      expire soonest) into a <b>Ring Videos</b> folder. You can close and reopen
-      anytime — it skips anything already saved.</p>
+  <div class="hero">
+    <div class="leafmark">🌿</div>
+    <h1>Ring Video Archiver</h1>
+    <p class="tagline">Save and keep your Ring videos — right on your own Mac.</p>
   </div>
+
+  <!-- What you'll need -->
+  <div class="panel needs">
+    <h2>Before you start, have these handy</h2>
+    <ul>
+      <li>Your <b>Ring email and password</b></li>
+      <li>Your <b>phone</b> (Ring will text you a code)</li>
+      <li>Enough <b>free space</b> on your Mac (or a plugged-in external drive) — there can be a lot of videos</li>
+    </ul>
+  </div>
+
+  <!-- STEP 1 -->
+  <div class="panel">
+    <div class="step">
+      <div class="num">1</div>
+      <div class="body">
+        <h2>Download the app</h2>
+        <p>Click the button that matches your Mac. Not sure which?
+           Click the <b>Apple menu </b>(top-left) → <b>About This Mac</b>:
+           if it says <b>“Chip: Apple…”</b> choose Apple Silicon; if it says
+           <b>“Intel”</b>, choose Intel.</p>
+        <div id="macButtons"></div>
+        <details>
+          <summary>Using a Windows PC or Linux instead?</summary>
+          <div id="otherButtons"></div>
+        </details>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="panel">
+    <div class="step">
+      <div class="num">2</div>
+      <div class="body">
+        <h2>Open the downloaded file</h2>
+        <p>Look in your <b>Downloads</b> folder. You'll see a file that ends in
+           <b>.zip</b>. Double-click it once — it unzips into an app called
+           <b>RingArchiver</b>.</p>
+        <p class="small">(If you don't see the app, the zip may be in a folder
+           with the same name — open that folder to find <b>RingArchiver</b>.)</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="panel">
+    <div class="step">
+      <div class="num">3</div>
+      <div class="body">
+        <h2>Let your Mac open it (first time only)</h2>
+        <p>Because this is a small free tool, your Mac will block it the very
+           first time. This is normal. Pick <b>either</b> way below — you only
+           do this once.</p>
+
+        <div class="way">
+          <p><b>Way A — no typing (easiest)</b></p>
+          <p class="small">
+            1. Double-click <b>RingArchiver</b>. A message says it can't be opened — click <b>Done</b>.<br>
+            2. Open the <b>Apple menu</b> → <b>System Settings</b> → <b>Privacy &amp; Security</b>.<br>
+            3. Scroll down to the message about <b>RingArchiver</b> and click <b>Open Anyway</b>, then confirm.</p>
+        </div>
+
+        <div class="way">
+          <p><b>Way B — one quick command</b></p>
+          <p class="small">Open the <b>Terminal</b> app (press <kbd>⌘</kbd>+<kbd>Space</kbd>,
+             type <b>Terminal</b>, press Return). Click <b>Copy</b>, paste it in
+             (<kbd>⌘</kbd>+<kbd>V</kbd>), press Return — then double-click
+             <b>RingArchiver</b>.</p>
+          <div class="cmd">
+            <code id="cmd">xattr -dr com.apple.quarantine ~/Downloads/RingArchiver.app</code>
+            <button onclick="copyCmd(this)">Copy</button>
+          </div>
+          <p class="small">This just tells your Mac the app is safe. It downloads
+             nothing and changes nothing else.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="panel">
+    <div class="step">
+      <div class="num">4</div>
+      <div class="body">
+        <h2>Sign in to Ring</h2>
+        <p>The app opens a page in your web browser by itself. Type your
+           <b>Ring email and password</b>. Ring will text a <b>6-digit code</b>
+           to your phone — type that in too. (You only sign in once.)</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 5 -->
+  <div class="panel">
+    <div class="step">
+      <div class="num">5</div>
+      <div class="body">
+        <h2>Choose your camera and start</h2>
+        <p>Pick your camera (for example <b>“Diane's room”</b>), leave it on
+           <b>Everything available</b>, and choose where to save (the
+           <b>Ring Videos</b> folder is fine, or your external drive).
+           Then click <b>Download videos</b>.</p>
+        <div class="callout">It saves the <b>oldest videos first</b> and shows a
+           progress bar. There may be a LOT, so it can run a long time — that's
+           okay. You can <b>close it and reopen anytime</b>; it remembers what's
+           already saved and keeps going.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 6 -->
+  <div class="panel">
+    <div class="step">
+      <div class="num">6</div>
+      <div class="body">
+        <h2>You're done</h2>
+        <p>When it says <b>Complete ✓</b>, all your videos are in the
+           <b>Ring Videos</b> folder, sorted by month, with a list file
+           (<b>manifest.csv</b>) of everything saved.</p>
+        <div class="callout ok">Everything stays on your own Mac. Your videos and
+           password never go anywhere except to Ring itself.</div>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot">🌿 Made with care. If a step ever looks stuck, just close the
+     app and open it again — it picks up right where it left off.</p>
 </div>
 
 <script>
   const REPO = "cfiorelli/ring-archiver";
   const base = `https://github.com/${REPO}/releases/latest/download`;
   const builds = {
-    macSilicon: { file: "RingArchiver-mac-AppleSilicon.zip", label: "Download for Mac", sub: "Apple Silicon (M1/M2/M3/M4)" },
-    macIntel:   { file: "RingArchiver-mac-Intel.zip",        label: "Download for Mac", sub: "Intel Mac" },
-    windows:    { file: "RingArchiver-windows.exe",          label: "Download for Windows", sub: "Windows 10 / 11" },
-    linux:      { file: "RingArchiver-linux",                label: "Download for Linux", sub: "" },
+    macSilicon: { file:"RingArchiver-mac-AppleSilicon.zip", label:"Download for Mac", sub:"Apple Silicon (M1/M2/M3/M4)" },
+    macIntel:   { file:"RingArchiver-mac-Intel.zip",        label:"Download for Mac", sub:"Intel Mac" },
+    windows:    { file:"RingArchiver-windows.exe",          label:"Download for Windows", sub:"Windows 10 / 11" },
+    linux:      { file:"RingArchiver-linux",                label:"Download for Linux", sub:"" },
   };
-  function btn(b, primary){
-    return `<a class="dl ${primary?'':'alt'}" href="${base}/${b.file}">${b.label}`
-         + (b.sub?`<small>${b.sub}</small>`:``) + `</a>`;
+  const btn = (b, primary) =>
+    `<a class="dl ${primary?'':'alt'}" href="${base}/${b.file}">${b.label}`
+    + (b.sub?`<small>${b.sub}</small>`:``) + `</a>`;
+
+  // Default to Apple Silicon first (most Macs since 2020); both are always shown.
+  document.getElementById("macButtons").innerHTML =
+    btn(builds.macSilicon, true) + btn(builds.macIntel, false);
+  document.getElementById("otherButtons").innerHTML =
+    btn(builds.windows, false) + btn(builds.linux, false);
+
+  function copyCmd(btnEl){
+    const text = document.getElementById("cmd").textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      const old = btnEl.textContent; btnEl.textContent = "Copied!";
+      setTimeout(() => btnEl.textContent = old, 1500);
+    });
   }
-  // Guess the visitor's OS to highlight the right button.
-  const ua = navigator.userAgent, plat = navigator.platform || "";
-  const isWin = /Win/.test(plat) || /Windows/.test(ua);
-  const isMac = /Mac/.test(plat) || /Mac OS X/.test(ua);
-  const isLinux = /Linux/.test(plat) && !/Android/.test(ua);
-  let primaryKey = isWin ? "windows" : isLinux ? "linux" : "macSilicon"; // Mac default
-  const order = Object.keys(builds).filter(k => k !== primaryKey);
-  document.getElementById("primary").innerHTML = btn(builds[primaryKey], true);
-  document.getElementById("others").innerHTML = order.map(k => btn(builds[k], false)).join("");
-  // Trim the security tip to the relevant OS.
-  if (isWin) document.getElementById("macTip").style.display = "none";
-  else if (isMac) document.getElementById("winTip").style.display = "none";
 </script>
 </body>
 </html>

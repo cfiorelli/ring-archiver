@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150">
+  <rect width="150" height="150" fill="#e7f1e4"/>
+  <g stroke="#a6d2a0" stroke-width="1.1" fill="#c3e2bf" opacity="0.9">
+    <!-- central rosette -->
+    <g transform="translate(75,75) rotate(0)   translate(0,-30)"><path d="M0,-26 C-13,-9 -13,9 0,26 C13,9 13,-9 0,-26 Z"/><path d="M0,-22 L0,22" stroke="#8cc285" fill="none"/></g>
+    <g transform="translate(75,75) rotate(72)  translate(0,-30)"><path d="M0,-26 C-13,-9 -13,9 0,26 C13,9 13,-9 0,-26 Z"/><path d="M0,-22 L0,22" stroke="#8cc285" fill="none"/></g>
+    <g transform="translate(75,75) rotate(144) translate(0,-30)"><path d="M0,-26 C-13,-9 -13,9 0,26 C13,9 13,-9 0,-26 Z"/><path d="M0,-22 L0,22" stroke="#8cc285" fill="none"/></g>
+    <g transform="translate(75,75) rotate(216) translate(0,-30)"><path d="M0,-26 C-13,-9 -13,9 0,26 C13,9 13,-9 0,-26 Z"/><path d="M0,-22 L0,22" stroke="#8cc285" fill="none"/></g>
+    <g transform="translate(75,75) rotate(288) translate(0,-30)"><path d="M0,-26 C-13,-9 -13,9 0,26 C13,9 13,-9 0,-26 Z"/><path d="M0,-22 L0,22" stroke="#8cc285" fill="none"/></g>
+  </g>
+  <g stroke="#b6dab0" stroke-width="0.9" fill="#d4ebd0" opacity="0.8">
+    <!-- corner sprigs (so the tile reads full when repeated) -->
+    <g transform="translate(0,0) rotate(45) scale(0.55)"><path d="M0,-26 C-13,-9 -13,9 0,26 C13,9 13,-9 0,-26 Z"/></g>
+    <g transform="translate(150,0) rotate(135) scale(0.55)"><path d="M0,-26 C-13,-9 -13,9 0,26 C13,9 13,-9 0,-26 Z"/></g>
+    <g transform="translate(0,150) rotate(-45) scale(0.55)"><path d="M0,-26 C-13,-9 -13,9 0,26 C13,9 13,-9 0,-26 Z"/></g>
+    <g transform="translate(150,150) rotate(225) scale(0.55)"><path d="M0,-26 C-13,-9 -13,9 0,26 C13,9 13,-9 0,-26 Z"/></g>
+  </g>
+  <circle cx="75" cy="75" r="3.2" fill="#7fb877"/>
+</svg>
