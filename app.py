@@ -60,7 +60,7 @@ except Exception:
 # Config
 # ---------------------------------------------------------------------------
 
-APP_VERSION = "2.0"                       # bump on each release; compared to GitHub
+APP_VERSION = "2.1"                       # bump on each release; compared to GitHub
 GITHUB_REPO = "cfiorelli/ring-archiver"
 RELEASES_PAGE = "https://github.com/%s/releases/latest" % GITHUB_REPO
 LATEST_API = "https://api.github.com/repos/%s/releases/latest" % GITHUB_REPO
@@ -123,6 +123,7 @@ STATE = {
 PAUSE = threading.Event()
 STOP = threading.Event()
 REAUTH = threading.Event()   # set while a run is paused waiting for re-login
+WORKER = None                # the active download thread (one run at a time)
 
 
 def update(**kw):
@@ -783,7 +784,13 @@ def run_download(camera_ids, start_iso, end_iso, dest, since_days=None, verify=F
             jobs = []  # (cam_obj, cam_name, [events])
             total = 0
             for c in selected:
-                evs = BRIDGE.call(BRIDGE._all_events(c["_obj"], start_dt, end_dt))
+                try:
+                    evs = BRIDGE.call(BRIDGE._all_events(c["_obj"], start_dt, end_dt))
+                except Exception as e:
+                    # One camera's history failing shouldn't throw away the whole
+                    # multi-minute scan — log it and keep the others.
+                    diag(dest_path, "SCAN-FAIL camera=%s %s" % (c.get("name"), str(e)[:120]))
+                    continue
                 jobs.append((c["_obj"], c["name"], evs))
                 total += len(evs)
                 if STOP.is_set():
@@ -799,9 +806,10 @@ def run_download(camera_ids, start_iso, end_iso, dest, since_days=None, verify=F
                 free = shutil.disk_usage(dest_path).free
                 need = total * AVG_CLIP_BYTES
                 if need > free:
-                    update(warning=("This could need about %s and the disk has "
-                                    "about %s free. It'll save as much as fits — "
-                                    "consider an external drive."
+                    update(warning=("This could need about %s but the disk has only "
+                                    "about %s free. It'll save what fits and stop "
+                                    "safely — nothing already saved is lost. Consider "
+                                    "an external drive for the rest."
                                     % (_human(need), _human(free))))
                     diag(dest_path, "PREFLIGHT low-space need=%d free=%d" % (need, free))
             except Exception:
@@ -832,13 +840,12 @@ def run_download(camera_ids, start_iso, end_iso, dest, since_days=None, verify=F
                         # re-fetched so it can never be mistaken for done.
                         if target.exists():
                             if mp4_status(target) == "ok":
+                                # Already saved — count it, but don't re-log a row
+                                # every resume (keeps manifest.csv from bloating).
                                 with STATE_LOCK:
                                     STATE["skipped"] += 1
                                     STATE["already"] += 1
                                     STATE["done"] += 1
-                                writer.writerow([ev.get("created_at"), cam_name,
-                                                 ev.get("kind"), str(target), "skipped"])
-                                mf.flush()
                                 continue
                             _safe_unlink(target)
                             diag(dest_path, "PARTIAL re-fetch %s" % target.name)
@@ -874,9 +881,8 @@ def run_download(camera_ids, start_iso, end_iso, dest, since_days=None, verify=F
 
                         with STATE_LOCK:
                             STATE["done"] += 1
-                            STATE["current"] = target.name
                             if status == "ok":
-                                pass
+                                STATE["current"] = target.name  # only show real saves
                             elif status == "gone":
                                 STATE["failed"] += 1
                                 STATE["failed_permanent"] += 1
@@ -901,11 +907,12 @@ def run_download(camera_ids, start_iso, end_iso, dest, since_days=None, verify=F
 
         if not STOP.is_set():
             final = snapshot()
-            msg = "All done. Videos saved to %s" % dest_path
+            msg = "Your videos are saved to %s" % dest_path
             if final.get("failed_permanent"):
-                msg += "  (%d clip(s) are no longer on Ring.)" % final["failed_permanent"]
+                msg += ("  (%d had already expired from Ring — those are gone for "
+                        "everyone, not a problem with the app.)" % final["failed_permanent"])
             if final.get("failed_recoverable"):
-                msg += ("  (%d failed to a hiccup — run Verify & repair to retry.)"
+                msg += ("  (%d to retry — click Check & fix saved videos.)"
                         % final["failed_recoverable"])
             update(phase="done", message=msg, eta_seconds=0)
             notify_done(snapshot())
@@ -983,7 +990,7 @@ def _demo_download(dest_path, manifest, new_manifest):
                 elapsed = time.time() - started
                 per = elapsed / (i + 1)
                 STATE["eta_seconds"] = int(per * (total - (i + 1)))
-            writer.writerow([ts.isoformat(), "Mom's Room (DEMO)", "motion", fname, "saved"])
+            writer.writerow([ts.isoformat(), "Backyard (sample)", "motion", fname, "saved"])
             mf.flush()
             time.sleep(0.05)
     if not STOP.is_set():
@@ -1135,8 +1142,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def _cameras(self):
         if DEMO:
-            cams = [{"id": "demo1", "name": "Mom's Room (DEMO)"},
-                    {"id": "demo2", "name": "Front Door (DEMO)"}]
+            cams = [{"id": "demo1", "name": "Backyard (sample)"},
+                    {"id": "demo2", "name": "Front Door (sample)"}]
             update(cameras=cams)
             return self._send(200, json.dumps({"cameras": cams}))
         try:
@@ -1164,6 +1171,14 @@ class Handler(BaseHTTPRequestHandler):
         since_days = body.get("since_days") or None
         dest = body.get("dest") or str(DEFAULT_DEST)
 
+        # One run at a time: a double-click/duplicate Start would spawn a second
+        # worker sharing STATE + manifest + the rate limiter, corrupting counts
+        # and doubling Ring's rate-limit pressure.
+        global WORKER
+        if WORKER is not None and WORKER.is_alive():
+            return self._send(200, json.dumps(
+                {"ok": False, "error": "A download is already running."}))
+
         # Mount guard: refuse to start if the chosen drive isn't connected,
         # rather than silently writing to the internal disk.
         problem = mount_problem(dest)
@@ -1173,11 +1188,11 @@ class Handler(BaseHTTPRequestHandler):
         update(phase="scanning", total=0, done=0, skipped=0, already=0, retried=0,
                failed=0, failed_recoverable=0, failed_permanent=0,
                current="", error="", warning="", eta_seconds=None)
-        t = threading.Thread(
+        WORKER = threading.Thread(
             target=run_download,
             args=(ids, start_date, end_date, dest),
             kwargs={"since_days": since_days, "verify": verify}, daemon=True)
-        t.start()
+        WORKER.start()
         return self._send(200, json.dumps({"ok": True}))
 
     def _open_folder(self):
@@ -1244,11 +1259,18 @@ def _bind_server():
 
 
 def main():
-    # Exactly the v1 launch that worked first-try: open the user's browser to a
-    # plain loopback server. No native webview (which tripped Local Network on
-    # Sequoia), no port-fallback, no error wrapper.
-    server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
-    url = "http://127.0.0.1:%d" % PORT
+    # v1-style launch (browser tab — no webview, which tripped Local Network on
+    # Sequoia), but bind the first FREE port so a leftover instance on 8765
+    # doesn't silently kill the app with no window to show why.
+    try:
+        server, port = _bind_server()
+    except OSError:
+        _report_fatal(
+            "Ring Video Archiver is already running (or ports %d–%d are in use). "
+            "Check your Dock, or open http://127.0.0.1:%d in your browser."
+            % (PORT, PORT + 9, PORT))
+        return
+    url = "http://127.0.0.1:%d" % port
     banner = " (DEMO MODE — no real account needed)" if DEMO else ""
     print("Ring Video Archiver v%s running at %s%s" % (APP_VERSION, url, banner))
     print("Close this window to stop.")
@@ -1264,4 +1286,14 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SystemExit:
+        raise
+    except BaseException:
+        import traceback
+        _report_fatal(
+            "Ring Video Archiver hit an unexpected error starting up and had to "
+            "close. Details saved to ~/.ring-archiver/launch-error.log.",
+            traceback.format_exc())
+        raise

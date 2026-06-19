@@ -78,6 +78,16 @@
   .picker { display:flex; gap:10px; align-items:stretch; }
   .picker > input { flex:1; }
   .choosebtn { width:auto; margin-top:0; padding:0 18px; white-space:nowrap; }
+  .donate { margin-top:20px; padding-top:18px; border-top:1px solid var(--line); }
+  .donate-lead { font-size:13px; color:var(--muted); margin:0 0 10px; line-height:1.5; }
+  .donate-amts { display:flex; gap:8px; }
+  .amt { flex:1; text-align:center; padding:11px 0; border:1px solid var(--line); border-radius:10px;
+         font-weight:700; font-size:15px; color:var(--ink); text-decoration:none; }
+  .amt:hover { border-color:var(--red); }
+  .amt.alt { flex:1.5; color:var(--muted); font-weight:600; }
+  .bar.indet > span { width:35% !important; transition:none;
+                      animation: indet 1.1s ease-in-out infinite; }
+  @keyframes indet { 0%{margin-left:-35%} 100%{margin-left:100%} }
 </style>
 </head>
 <body>
@@ -107,7 +117,7 @@
       </div>
       <button id="signin">Sign in</button>
       <div id="loginErr" class="err"></div>
-      <p class="note">Your email and password go straight to Ring — this app never stores them.
+      <p id="privacyNote" class="note">Your email and password go straight to Ring — this app never stores them.
         Ring will text a one-time code the first time.</p>
     </section>
 
@@ -146,23 +156,47 @@
       <div class="step" id="progStep">Step 3 · Downloading</div>
       <div id="bigPct" class="big">0%</div>
       <div class="bar"><span id="barFill"></span></div>
-      <div class="stats">
+      <div id="stats" class="stats">
         <div><b id="sDone">0</b> of <b id="sTotal">0</b> done</div>
         <div id="sEta">estimating…</div>
         <div><span id="sAlready">0</span> already saved · <span id="sFail">0</span> failed</div>
       </div>
       <div id="warnBox" class="warnbox hide"></div>
       <div class="cur" id="curFile"></div>
-      <div class="row">
+      <p id="safeNote" class="note">Safe to close anytime — reopen, pick the same options, and it continues where it left off.</p>
+      <div id="runRow" class="row">
         <div><button id="pause" class="ghost">Pause</button></div>
-        <div><button id="openFolder" class="ghost">Open folder</button></div>
+        <div><button id="stop" class="ghost">Stop</button></div>
       </div>
-      <div id="doneMsg" class="note hide"></div>
-      <button id="verifyAgain" class="ghost hide">Verify &amp; repair</button>
+
+      <!-- DONE -->
+      <div id="doneBox" class="hide">
+        <div id="doneMsg" class="note"></div>
+        <button id="openFolder">Open my videos folder</button>
+        <button id="verifyAgain" class="ghost">Check &amp; fix saved videos</button>
+        <p class="note">Re-checks saved videos and re-downloads any incomplete ones — never deletes good files.</p>
+        <div class="donate">
+          <p class="donate-lead">This tool is free and always will be. If it helped, a small tip keeps it going — totally optional.</p>
+          <div class="donate-amts">
+            <a class="amt" data-amt="5" target="_blank" rel="noopener noreferrer">$5</a>
+            <a class="amt" data-amt="15" target="_blank" rel="noopener noreferrer">$15</a>
+            <a class="amt" data-amt="25" target="_blank" rel="noopener noreferrer">$25</a>
+            <a class="amt alt" data-amt="" target="_blank" rel="noopener noreferrer">Any amount</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- ERROR -->
+      <div id="errBox" class="hide">
+        <div id="errMsg" class="err"></div>
+        <div class="row">
+          <div><button id="errRetry" class="ghost">Back to choices</button></div>
+          <div><button id="errOpen" class="ghost">Open folder</button></div>
+        </div>
+      </div>
     </section>
   </div>
-  <p class="support">This tool is free and private. If it helped, you can
-    <a href="https://venmo.com/u/CHRISTOPHER-FIORELLI-1" target="_blank" rel="noopener noreferrer">chip in&nbsp;♥</a>.</p>
+  <p class="support">Free &amp; private — your videos and password never touch our servers.</p>
   <p class="ver" id="verLine"></p>
 </div>
 
@@ -196,6 +230,12 @@ function fmtEta(s){
   DEMO = s.demo;
   $("#demoBadge").classList.toggle("hide", !DEMO);
   $("#verLine").textContent = "v" + (s.version || "");
+  if (DEMO){
+    // No real Ring call in demo — don't let anyone type a real password into it.
+    $("#email").disabled = true; $("#password").disabled = true;
+    $("#email").placeholder = "(demo — no sign-in needed)";
+    $("#privacyNote").textContent = "Demo mode — this is a sample run; no Ring account is used.";
+  }
   checkUpdate();
   if (s.signed_in){ await loadCameras(); show("choose"); }
   else show("login");
@@ -330,7 +370,11 @@ async function beginJob(path, job){
   $("#chooseErr").textContent = "";
   ensureNotifyPermission();
   notified = false;
-  await api(path, lastJob);
+  // reset the progress screen to a clean running state
+  paused = false; $("#pause").disabled = false; $("#pause").textContent = "Pause";
+  $("#doneBox").classList.add("hide"); $("#errBox").classList.add("hide");
+  const r = await api(path, lastJob);
+  if (r && r.ok === false){ $("#chooseErr").textContent = r.error || "Couldn't start."; return; }
   show("progress"); startPolling();
 }
 
@@ -341,6 +385,23 @@ $("#pause").onclick = async () => {
   $("#pause").textContent = paused ? "Resume" : "Pause";
 };
 $("#openFolder").onclick = () => api("/api/open-folder", {});
+$("#stop").onclick = async () => {
+  await api("/api/stop", {});
+  if (polling) { clearInterval(polling); polling = null; }
+  show("choose");
+};
+$("#errRetry").onclick = () => show("choose");
+$("#errOpen").onclick = () => api("/api/open-folder", {});
+
+// Contribution links: Venmo profile, best-effort amount prefill (falls back to
+// the plain profile if Venmo ignores the param).
+(function setupDonate(){
+  const base = "https://venmo.com/u/CHRISTOPHER-FIORELLI-1";
+  document.querySelectorAll(".amt").forEach(a => {
+    const amt = a.getAttribute("data-amt");
+    a.href = amt ? (base + "?txn=pay&amount=" + amt + "&note=Ring%20Video%20Archiver") : base;
+  });
+})();
 
 function startPolling(){
   if (polling) clearInterval(polling);
@@ -370,15 +431,22 @@ async function refresh(){
     show("login"); return;
   }
 
+  const scanning = p.phase === "scanning";
+  const isDone = p.phase === "done", isErr = p.phase === "error";
   const total = p.total||0, done = p.done||0;
-  const pct = total ? Math.floor(done*100/total) : 0;
-  $("#bigPct").textContent = pct + "%";
-  $("#barFill").style.width = pct + "%";
+  const pct = total ? Math.min(100, Math.floor(done*100/total)) : 0;  // never >100%
+
+  // Scanning: no known total yet → animated bar, hide misleading 0%/stats.
+  document.querySelector(".bar").classList.toggle("indet", scanning);
+  $("#stats").classList.toggle("hide", scanning);
+  $("#bigPct").textContent = scanning ? "" : pct + "%";
+  if (!scanning) $("#barFill").style.width = pct + "%";
+
   $("#sDone").textContent = done.toLocaleString();
   $("#sTotal").textContent = total.toLocaleString();
   $("#sAlready").textContent = (p.already||0).toLocaleString();
   let failTxt = (p.failed||0).toLocaleString();
-  if (p.failed_permanent) failTxt += " (" + p.failed_permanent + " gone from Ring)";
+  if (p.failed_permanent) failTxt += " (" + p.failed_permanent + " expired from Ring)";
   $("#sFail").textContent = failTxt;
   $("#sEta").textContent = fmtEta(p.eta_seconds);
   $("#curFile").textContent = p.current ? "✓ " + p.current : (p.message||"");
@@ -386,21 +454,23 @@ async function refresh(){
   $("#warnBox").classList.toggle("hide", !p.warning);
   if (p.warning) $("#warnBox").textContent = "⚠ " + p.warning;
 
-  if (p.phase === "scanning"){ $("#progStep").textContent = p.verifying ? "Step 3 · Re-checking" : "Step 3 · Finding videos"; }
+  // terminal vs running UI
+  $("#doneBox").classList.toggle("hide", !isDone);
+  $("#errBox").classList.toggle("hide", !isErr);
+  $("#runRow").classList.toggle("hide", isDone || isErr);
+  $("#safeNote").classList.toggle("hide", isDone || isErr);
+
+  if (scanning){ $("#progStep").textContent = p.verifying ? "Step 3 · Re-checking" : "Step 3 · Finding videos"; }
   else if (p.phase === "paused"){ $("#progStep").textContent = "Step 3 · Paused"; }
   else if (p.phase === "downloading"){ $("#progStep").textContent = p.verifying ? "Step 3 · Verifying & repairing" : "Step 3 · Downloading"; }
-  else if (p.phase === "done"){
+  else if (isDone){
     $("#progStep").innerHTML = 'Step 3 · <span class="done-icon">Complete ✓</span>';
-    $("#doneMsg").classList.remove("hide");
-    $("#doneMsg").textContent = p.message || "All done.";
-    $("#pause").disabled = true;
-    $("#verifyAgain").classList.remove("hide");
-    fireDoneNotification(p.message || "All done.");
+    $("#doneMsg").innerHTML = '<b>Your videos are saved.</b><br>' + (p.message || "All done.");
+    fireDoneNotification("Your videos are saved.");
     clearInterval(polling); polling = null;
-  } else if (p.phase === "error"){
-    $("#progStep").textContent = "Something went wrong";
-    $("#doneMsg").classList.remove("hide");
-    $("#doneMsg").textContent = p.error || "Unknown error";
+  } else if (isErr){
+    $("#progStep").textContent = "Stopped";
+    $("#errMsg").textContent = p.error || "Something went wrong.";
     clearInterval(polling); polling = null;
   }
 }
