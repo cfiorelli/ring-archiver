@@ -60,7 +60,7 @@ except Exception:
 # Config
 # ---------------------------------------------------------------------------
 
-APP_VERSION = "1.9"                       # bump on each release; compared to GitHub
+APP_VERSION = "2.0"                       # bump on each release; compared to GitHub
 GITHUB_REPO = "cfiorelli/ring-archiver"
 RELEASES_PAGE = "https://github.com/%s/releases/latest" % GITHUB_REPO
 LATEST_API = "https://api.github.com/repos/%s/releases/latest" % GITHUB_REPO
@@ -247,7 +247,7 @@ def _retry_after(e):
 
 def classify_error(e):
     """Map an exception to (kind, status). kind in:
-    auth | gone | rate | retry."""
+    nospace | auth | gone | rate | retry."""
     status = getattr(e, "status", None) or getattr(e, "code", None)
     msg = str(e) or e.__class__.__name__
     name = e.__class__.__name__.lower()
@@ -255,6 +255,8 @@ def classify_error(e):
     if status is None:
         m = re.search(r"\b([45]\d\d)\b", msg)
         status = int(m.group(1)) if m else None
+    if getattr(e, "errno", None) == 28 or "no space left" in low:
+        return "nospace", status
     if (status in (401, 403) or "authent" in low or "token" in low or "2fa" in low
             or "unauthor" in low or "authent" in name or "requires2fa" in name):
         return "auth", status
@@ -860,6 +862,16 @@ def run_download(camera_ids, start_iso, end_iso, dest, since_days=None, verify=F
                         if STOP.is_set():
                             break
 
+                        if status == "nospace":
+                            diag(dest_path, "NOSPACE halting run")
+                            update(phase="error", error=(
+                                "The disk is full — couldn't save more videos. "
+                                "Everything downloaded so far is safe. Free up space "
+                                "(or plug in an external drive and set Save to → Choose…), "
+                                "then start again to resume where it left off."))
+                            STOP.set()
+                            break
+
                         with STATE_LOCK:
                             STATE["done"] += 1
                             STATE["current"] = target.name
@@ -914,6 +926,8 @@ def _download_one(cam, ev, target, rc, dest_path):
             diag(dest_path, "ERR id=%s status=%s kind=%s %s"
                  % (ev.get("id"), status, kind, str(e)[:140]))
             _safe_unlink(target)
+            if kind == "nospace":
+                return "nospace"
             if kind == "auth":
                 return "auth"
             if kind == "gone":
