@@ -35,12 +35,22 @@
   .note { font-size:13px; color:var(--muted); margin-top:14px; line-height:1.5; }
   .err { color:var(--red); font-size:14px; margin-top:12px; min-height:18px; }
   /* camera list */
-  .camlist { border:1px solid var(--line); border-radius:10px; max-height:170px;
-             overflow:auto; padding:4px 0; }
-  .camrow { display:flex; align-items:center; gap:10px; padding:8px 13px; cursor:pointer; }
+  .camlist { border:1px solid var(--line); border-radius:10px; max-height:260px;
+             overflow-y:auto; overscroll-behavior:contain; padding:4px 0; }
+  .camrow { display:flex; align-items:center; gap:10px; padding:9px 13px; cursor:pointer;
+            font-size:15px; }
   .camrow:hover { background:#f9fafb; }
-  .camrow input { width:auto; }
-  .camrow.allrow { border-bottom:1px solid var(--line); font-weight:700; }
+  .camrow input { width:auto; flex:0 0 auto; }
+  .camrow.allrow { position:sticky; top:0; background:#fff; border-bottom:1px solid var(--line);
+                   font-weight:700; z-index:1; }
+  /* signed-in banner */
+  .signedin { display:flex; justify-content:space-between; align-items:center;
+              background:#eafaf0; color:var(--ok); border:1px solid #bfe8cf;
+              border-radius:10px; padding:9px 13px; font-size:13px; font-weight:600;
+              margin-bottom:18px; }
+  .signedin a { color:var(--muted); font-weight:600; text-decoration:underline;
+                text-underline-offset:2px; cursor:pointer; font-size:12px; }
+  .signedin a:hover { color:var(--ink); }
   /* banners */
   .banner { font-size:13px; border-radius:10px; padding:10px 13px; margin-bottom:16px;
             display:flex; gap:10px; align-items:center; justify-content:space-between; }
@@ -81,8 +91,10 @@
     <h1><span class="dot"></span> Ring Video Archiver <span id="demoBadge" class="badge hide">DEMO</span></h1>
     <p class="sub">Save and preserve your Ring camera videos before they expire.</p>
 
+    <p id="loadingMsg" class="note">Connecting…</p>
+
     <!-- STEP 1: sign in -->
-    <section id="login">
+    <section id="login" class="hide">
       <div class="step" id="loginStep">Step 1 · Sign in to Ring</div>
       <div id="reauthNote" class="warnbox hide"></div>
       <label>Email</label>
@@ -101,6 +113,7 @@
 
     <!-- STEP 2: choose -->
     <section id="choose" class="hide">
+      <div id="signedIn" class="signedin">✓ Signed in to Ring <a id="signout">Sign out</a></div>
       <div class="step">Step 2 · Choose what to save</div>
       <label>Cameras</label>
       <div id="camlist" class="camlist"></div>
@@ -159,7 +172,10 @@ let DEMO = false, polling = null, paused = false;
 let reauthing = false, notified = false;
 let lastJob = null;  // remembers selection so "Verify & repair" can re-run it
 
-function show(id){ for (const s of ["login","choose","progress"]) $("#"+s).classList.toggle("hide", s!==id); }
+function show(id){
+  $("#loadingMsg").classList.add("hide");
+  for (const s of ["login","choose","progress"]) $("#"+s).classList.toggle("hide", s!==id);
+}
 async function api(path, body){
   const opt = { method: body ? "POST" : "GET" };
   if (body){ opt.headers={"Content-Type":"application/json"}; opt.body=JSON.stringify(body); }
@@ -195,6 +211,14 @@ async function checkUpdate(){
     }
   } catch(e){}
 }
+
+// ---- sign out: forget the saved Ring login, back to the sign-in screen ----
+$("#signout").onclick = async () => {
+  await api("/api/logout", {});
+  $("#email").value = ""; $("#password").value = ""; $("#otp").value = "";
+  $("#otpBox").classList.add("hide");
+  show("login");
+};
 
 // ---- sign in (also used for mid-run re-auth) ----
 $("#signin").onclick = async () => {

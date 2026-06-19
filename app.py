@@ -60,7 +60,7 @@ except Exception:
 # Config
 # ---------------------------------------------------------------------------
 
-APP_VERSION = "1.8"                       # bump on each release; compared to GitHub
+APP_VERSION = "1.9"                       # bump on each release; compared to GitHub
 GITHUB_REPO = "cfiorelli/ring-archiver"
 RELEASES_PAGE = "https://github.com/%s/releases/latest" % GITHUB_REPO
 LATEST_API = "https://api.github.com/repos/%s/releases/latest" % GITHUB_REPO
@@ -86,7 +86,7 @@ DEMO = os.environ.get("RING_ARCHIVER_DEMO") == "1"
 # Be gentle with Ring's (unofficial) API. The throttle is ADAPTIVE: it starts at
 # the floor and backs off automatically when Ring rate-limits, then eases down.
 THROTTLE_SECONDS = float(os.environ.get("RING_ARCHIVER_THROTTLE", "1.0"))   # floor
-THROTTLE_CEIL = float(os.environ.get("RING_ARCHIVER_THROTTLE_CEIL", "30"))  # max
+THROTTLE_CEIL = float(os.environ.get("RING_ARCHIVER_THROTTLE_CEIL", "8"))   # max
 MAX_RETRIES = int(os.environ.get("RING_ARCHIVER_RETRIES", "5"))
 HISTORY_PAGE = 100  # events fetched per history request
 AVG_CLIP_BYTES = 12 * 1024 * 1024  # rough per-clip estimate for free-space preflight
@@ -226,7 +226,7 @@ class RateController:
 
     def ok(self):
         with self._lock:
-            self.delay = max(self.floor, self.delay * 0.9)
+            self.delay = max(self.floor, self.delay * 0.6)
 
     def slow(self, retry_after=0.0):
         with self._lock:
@@ -880,7 +880,10 @@ def run_download(camera_ids, start_iso, end_iso, dest, since_days=None, verify=F
                                          ev.get("kind"), str(target),
                                          "saved" if status == "ok" else status])
                         mf.flush()
-                        rc.wait()
+                        # Pace only real downloads. "gone" 404s are instant and
+                        # shouldn't inherit a long cooldown; recoverable failures
+                        # already slept inside their retry loop.
+                        time.sleep(rc.current() if status == "ok" else 0.3)
                     if STOP.is_set():
                         break
 
@@ -914,6 +917,7 @@ def _download_one(cam, ev, target, rc, dest_path):
             if kind == "auth":
                 return "auth"
             if kind == "gone":
+                rc.ok()  # Ring answered (no recording) — not a rate signal; ease back
                 return "gone"
             with STATE_LOCK:
                 STATE["retried"] += 1
@@ -1072,6 +1076,15 @@ class Handler(BaseHTTPRequestHandler):
             PAUSE.clear(); update(phase="downloading"); return self._send(200, json.dumps({"ok": True}))
         if self.path == "/api/stop":
             STOP.set(); PAUSE.clear(); REAUTH.clear(); return self._send(200, json.dumps({"ok": True}))
+        if self.path == "/api/logout":
+            try:
+                TOKEN_FILE.unlink()
+            except Exception:
+                pass
+            BRIDGE.ring = None
+            BRIDGE.auth = None
+            update(signed_in=False, phase="login", cameras=[])
+            return self._send(200, json.dumps({"ok": True}))
         if self.path == "/api/open-folder":
             self._open_folder(); return self._send(200, json.dumps({"ok": True}))
         if self.path == "/api/choose-folder":
