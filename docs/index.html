@@ -92,10 +92,7 @@
       <div class="num">1</div>
       <div class="body">
         <h2>Download the app</h2>
-        <p>Click the button that matches your Mac. Not sure which?
-           Click the <b>Apple menu </b>(top-left) → <b>About This Mac</b>:
-           if it says <b>“Chip: Apple…”</b> choose Apple Silicon; if it says
-           <b>“Intel”</b>, choose Intel.</p>
+        <p>Click the button below to download for your Mac.</p>
         <div id="macButtons"></div>
         <details>
           <summary>Using a Windows PC or Linux instead?</summary>
@@ -210,7 +207,6 @@
   const base = `https://github.com/${REPO}/releases/latest/download`;
   const builds = {
     macSilicon: { file:"RingArchiver-mac-AppleSilicon.zip", label:"Download for Mac", sub:"Apple Silicon (M1/M2/M3/M4)" },
-    macIntel:   { file:"RingArchiver-mac-Intel.zip",        label:"Download for Mac", sub:"Intel Mac" },
     windows:    { file:"RingArchiver-windows.exe",          label:"Download for Windows", sub:"Windows 10 / 11" },
     linux:      { file:"RingArchiver-linux",                label:"Download for Linux", sub:"" },
   };
@@ -218,9 +214,8 @@
     `<a class="dl ${primary?'':'alt'}" href="${base}/${b.file}">${b.label}`
     + (b.sub?`<small>${b.sub}</small>`:``) + `</a>`;
 
-  // Default to Apple Silicon first (most Macs since 2020); both are always shown.
   document.getElementById("macButtons").innerHTML =
-    btn(builds.macSilicon, true) + btn(builds.macIntel, false);
+    btn(builds.macSilicon, true);
   document.getElementById("otherButtons").innerHTML =
     btn(builds.windows, false) + btn(builds.linux, false);
 
