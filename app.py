@@ -60,7 +60,7 @@ except Exception:
 # Config
 # ---------------------------------------------------------------------------
 
-APP_VERSION = "1.6"                       # bump on each release; compared to GitHub
+APP_VERSION = "1.7"                       # bump on each release; compared to GitHub
 GITHUB_REPO = "cfiorelli/ring-archiver"
 RELEASES_PAGE = "https://github.com/%s/releases/latest" % GITHUB_REPO
 LATEST_API = "https://api.github.com/repos/%s/releases/latest" % GITHUB_REPO
@@ -1229,10 +1229,27 @@ def main():
     url = "http://127.0.0.1:%d" % port
     banner = " (DEMO MODE — no real account needed)" if DEMO else ""
     print("Ring Video Archiver v%s running at %s%s" % (APP_VERSION, url, banner))
-    print("Close this window to stop.")
-    if os.environ.get("RING_ARCHIVER_NO_BROWSER") != "1":
-        # webbrowser.open() silently fails from a windowed PyInstaller bundle;
-        # shell out to the OS opener, which is reliable.
+
+    # Serve in the background so the UI can own the main thread.
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+
+    if os.environ.get("RING_ARCHIVER_NO_BROWSER") == "1":
+        try:
+            while True:
+                time.sleep(3600)
+        except KeyboardInterrupt:
+            return
+        return
+
+    # Real native window — NOT a browser tab. Closing it quits the app.
+    try:
+        import webview
+        webview.create_window("Ring Video Archiver", url, width=640, height=860)
+        webview.start()
+        return
+    except Exception:
+        # Last-resort fallback if the native webview backend is unavailable:
+        # open the system browser so the user can still reach the UI.
         try:
             if sys.platform == "darwin":
                 subprocess.Popen(["open", url],
@@ -1243,14 +1260,12 @@ def main():
                 subprocess.Popen(["xdg-open", url],
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception:
-            try:
-                webbrowser.open(url)
-            except Exception:
-                pass
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        pass
+            pass
+        try:
+            while True:
+                time.sleep(3600)
+        except KeyboardInterrupt:
+            return
 
 
 if __name__ == "__main__":
