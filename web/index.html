@@ -75,6 +75,16 @@
   .support a { color:var(--muted); text-decoration:underline; text-underline-offset:2px; }
   .support a:hover { color:var(--ink); }
   .ver { text-align:center; color:#aab1bb; font-size:11px; margin-top:6px; }
+  .foot-links { margin-top:4px; font-size:12px; }
+  .foot-links a { color:#9aa1ab; text-decoration:none; cursor:pointer; }
+  .foot-links a:hover { color:var(--ink); text-decoration:underline; }
+  .history { max-width:560px; margin:10px auto 0; text-align:left; background:#fff;
+             border:1px solid var(--line); border-radius:12px; padding:6px 16px; }
+  .rel { padding:10px 0; border-top:1px solid var(--line); }
+  .rel:first-child { border-top:0; }
+  .rel b { font-size:13px; } .rel .reldate { color:var(--muted); font-size:12px; }
+  .rel .relnotes { color:var(--muted); font-size:12px; white-space:pre-wrap;
+                   margin-top:4px; line-height:1.5; }
   .picker { display:flex; gap:10px; align-items:stretch; }
   .picker > input { flex:1; }
   .choosebtn { width:auto; margin-top:0; padding:0 18px; white-space:nowrap; }
@@ -198,6 +208,12 @@
   </div>
   <p class="support">Free &amp; private — your videos and password never touch our servers.</p>
   <p class="ver" id="verLine"></p>
+  <p class="ver foot-links">
+    <a id="whatsNew">What's new</a> ·
+    <a id="helpLink" target="_blank" rel="noopener noreferrer">Help</a> ·
+    <a id="portfolioLink" target="_blank" rel="noopener noreferrer">About the maker</a>
+  </p>
+  <div id="history" class="history hide"></div>
 </div>
 
 <script>
@@ -230,6 +246,9 @@ function fmtEta(s){
   DEMO = s.demo;
   $("#demoBadge").classList.toggle("hide", !DEMO);
   $("#verLine").textContent = "v" + (s.version || "");
+  if (s.help_url) $("#helpLink").href = s.help_url;
+  if (s.portfolio_url) $("#portfolioLink").href = s.portfolio_url;
+  loadReleases(s.version);
   if (DEMO){
     // No real Ring call in demo — don't let anyone type a real password into it.
     $("#email").disabled = true; $("#password").disabled = true;
@@ -240,6 +259,21 @@ function fmtEta(s){
   if (s.signed_in){ await loadCameras(); show("choose"); }
   else show("login");
 })();
+
+async function loadReleases(curVer){
+  try {
+    const r = await api("/api/releases");
+    const rels = r.releases || [];
+    const cur = rels.find(x => x.version === (r.current || curVer));
+    if (cur && cur.date) $("#verLine").textContent = "v" + cur.version + " · released " + cur.date;
+    const box = $("#history");
+    box.innerHTML = rels.map(x =>
+      '<div class="rel"><b>v' + x.version + '</b> <span class="reldate">' + (x.date||"") + '</span>'
+      + (x.notes ? '<div class="relnotes">' + x.notes.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '</div>' : '')
+      + '</div>').join("") || '<div class="rel">No release notes available offline.</div>';
+  } catch(e){}
+}
+$("#whatsNew").onclick = () => $("#history").classList.toggle("hide");
 
 async function checkUpdate(){
   try {

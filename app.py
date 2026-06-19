@@ -60,10 +60,13 @@ except Exception:
 # Config
 # ---------------------------------------------------------------------------
 
-APP_VERSION = "2.1"                       # bump on each release; compared to GitHub
+APP_VERSION = "2.2"                       # bump on each release; compared to GitHub
 GITHUB_REPO = "cfiorelli/ring-archiver"
 RELEASES_PAGE = "https://github.com/%s/releases/latest" % GITHUB_REPO
 LATEST_API = "https://api.github.com/repos/%s/releases/latest" % GITHUB_REPO
+RELEASES_API = "https://api.github.com/repos/%s/releases?per_page=20" % GITHUB_REPO
+HELP_URL = "https://cfiorelli.github.io/ring-archiver/"     # the step-by-step guide page
+PORTFOLIO_URL = "https://github.com/cfiorelli"              # TODO: swap for real portfolio URL
 
 HERE = Path(__file__).resolve().parent
 # When packaged with PyInstaller, bundled assets (web/) live under sys._MEIPASS.
@@ -360,6 +363,36 @@ def check_update():
         pass
     _UPDATE_CACHE.update(res)
     return res
+
+
+_RELEASES_CACHE = []
+
+
+def list_releases():
+    """Version history from GitHub Releases: [{version, date, notes, url}]."""
+    if _RELEASES_CACHE:
+        return _RELEASES_CACHE
+    out = []
+    try:
+        import urllib.request
+        req = urllib.request.Request(
+            RELEASES_API, headers={"User-Agent": USER_AGENT,
+                                   "Accept": "application/vnd.github+json"})
+        with urllib.request.urlopen(req, timeout=5) as r:
+            data = json.loads(r.read().decode("utf-8"))
+        for rel in data:
+            if rel.get("draft"):
+                continue
+            out.append({
+                "version": (rel.get("tag_name") or "").lstrip("vV"),
+                "date": (rel.get("published_at") or "")[:10],
+                "notes": (rel.get("body") or "").strip(),
+                "url": rel.get("html_url") or RELEASES_PAGE,
+            })
+    except Exception:
+        pass
+    _RELEASES_CACHE[:] = out
+    return out
 
 
 def notify_done(state):
@@ -1048,6 +1081,9 @@ class Handler(BaseHTTPRequestHandler):
             q = parse_qs(route.query)
             dest = (q.get("dest") or [str(DEFAULT_DEST)])[0]
             return self._send(200, json.dumps(dest_info(dest)))
+        if route.path == "/api/releases":
+            return self._send(200, json.dumps(
+                {"releases": list_releases(), "current": APP_VERSION}))
         if self.path in ("/", "/index.html"):
             html = (WEB_DIR / "index.html").read_text()
             return self._send(200, html, "text/html; charset=utf-8")
@@ -1076,7 +1112,8 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 update(signed_in=signed)
             return self._send(200, json.dumps(
-                {"signed_in": signed, "demo": DEMO, "version": APP_VERSION}))
+                {"signed_in": signed, "demo": DEMO, "version": APP_VERSION,
+                 "help_url": HELP_URL, "portfolio_url": PORTFOLIO_URL}))
         return self._send(404, json.dumps({"error": "not found"}))
 
     def do_POST(self):
