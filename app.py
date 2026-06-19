@@ -60,13 +60,13 @@ except Exception:
 # Config
 # ---------------------------------------------------------------------------
 
-APP_VERSION = "2.2"                       # bump on each release; compared to GitHub
+APP_VERSION = "2.3"                       # bump on each release; compared to GitHub
 GITHUB_REPO = "cfiorelli/ring-archiver"
 RELEASES_PAGE = "https://github.com/%s/releases/latest" % GITHUB_REPO
 LATEST_API = "https://api.github.com/repos/%s/releases/latest" % GITHUB_REPO
 RELEASES_API = "https://api.github.com/repos/%s/releases?per_page=20" % GITHUB_REPO
 HELP_URL = "https://cfiorelli.github.io/ring-archiver/"     # the step-by-step guide page
-PORTFOLIO_URL = "https://github.com/cfiorelli"              # TODO: swap for real portfolio URL
+PORTFOLIO_URL = "https://cfiorelli.github.io"
 
 HERE = Path(__file__).resolve().parent
 # When packaged with PyInstaller, bundled assets (web/) live under sys._MEIPASS.
