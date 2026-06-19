@@ -1,3 +1,2 @@
 ring_doorbell==0.9.14
 certifi>=2024.2.2
-pywebview>=5.0

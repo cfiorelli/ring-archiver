@@ -60,7 +60,7 @@ except Exception:
 # Config
 # ---------------------------------------------------------------------------
 
-APP_VERSION = "1.7"                       # bump on each release; compared to GitHub
+APP_VERSION = "1.8"                       # bump on each release; compared to GitHub
 GITHUB_REPO = "cfiorelli/ring-archiver"
 RELEASES_PAGE = "https://github.com/%s/releases/latest" % GITHUB_REPO
 LATEST_API = "https://api.github.com/repos/%s/releases/latest" % GITHUB_REPO
@@ -1217,66 +1217,24 @@ def _bind_server():
 
 
 def main():
-    try:
-        server, port = _bind_server()
-    except OSError:
-        _report_fatal(
-            "Ports %d–%d are all busy. Ring Video Archiver may already be "
-            "running — look in your Dock, or open http://127.0.0.1:%d in your "
-            "browser. If not, quit the other copy and try again."
-            % (PORT, PORT + 9, PORT))
-        return
-    url = "http://127.0.0.1:%d" % port
+    # Exactly the v1 launch that worked first-try: open the user's browser to a
+    # plain loopback server. No native webview (which tripped Local Network on
+    # Sequoia), no port-fallback, no error wrapper.
+    server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+    url = "http://127.0.0.1:%d" % PORT
     banner = " (DEMO MODE — no real account needed)" if DEMO else ""
     print("Ring Video Archiver v%s running at %s%s" % (APP_VERSION, url, banner))
-
-    # Serve in the background so the UI can own the main thread.
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-
-    if os.environ.get("RING_ARCHIVER_NO_BROWSER") == "1":
+    print("Close this window to stop.")
+    if os.environ.get("RING_ARCHIVER_NO_BROWSER") != "1":
         try:
-            while True:
-                time.sleep(3600)
-        except KeyboardInterrupt:
-            return
-        return
-
-    # Real native window — NOT a browser tab. Closing it quits the app.
-    try:
-        import webview
-        webview.create_window("Ring Video Archiver", url, width=640, height=860)
-        webview.start()
-        return
-    except Exception:
-        # Last-resort fallback if the native webview backend is unavailable:
-        # open the system browser so the user can still reach the UI.
-        try:
-            if sys.platform == "darwin":
-                subprocess.Popen(["open", url],
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            elif os.name == "nt":
-                os.startfile(url)  # noqa
-            else:
-                subprocess.Popen(["xdg-open", url],
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            webbrowser.open(url)
         except Exception:
             pass
-        try:
-            while True:
-                time.sleep(3600)
-        except KeyboardInterrupt:
-            return
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except SystemExit:
-        raise
-    except BaseException:
-        import traceback
-        _report_fatal(
-            "Ring Video Archiver hit an unexpected error while starting and had "
-            "to close. The details were saved to ~/.ring-archiver/launch-error.log.",
-            traceback.format_exc())
-        raise
+    main()
