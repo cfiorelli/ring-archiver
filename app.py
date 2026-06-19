@@ -60,7 +60,7 @@ except Exception:
 # Config
 # ---------------------------------------------------------------------------
 
-APP_VERSION = "1.5"                       # bump on each release; compared to GitHub
+APP_VERSION = "1.6"                       # bump on each release; compared to GitHub
 GITHUB_REPO = "cfiorelli/ring-archiver"
 RELEASES_PAGE = "https://github.com/%s/releases/latest" % GITHUB_REPO
 LATEST_API = "https://api.github.com/repos/%s/releases/latest" % GITHUB_REPO
@@ -1231,10 +1231,22 @@ def main():
     print("Ring Video Archiver v%s running at %s%s" % (APP_VERSION, url, banner))
     print("Close this window to stop.")
     if os.environ.get("RING_ARCHIVER_NO_BROWSER") != "1":
+        # webbrowser.open() silently fails from a windowed PyInstaller bundle;
+        # shell out to the OS opener, which is reliable.
         try:
-            webbrowser.open(url)
+            if sys.platform == "darwin":
+                subprocess.Popen(["open", url],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            elif os.name == "nt":
+                os.startfile(url)  # noqa
+            else:
+                subprocess.Popen(["xdg-open", url],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception:
-            pass
+            try:
+                webbrowser.open(url)
+            except Exception:
+                pass
     try:
         server.serve_forever()
     except KeyboardInterrupt:
